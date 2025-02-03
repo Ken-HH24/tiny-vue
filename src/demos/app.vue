@@ -2,7 +2,7 @@
 import { reactive } from 'vue'
 export default {
   setup() {
-    const state = reactive({ message: 'Hello, vue!', input: '' })
+    const state = reactive({ message: 'Hello, vue!', input: '', id: 'aaa' })
 
     const changeMessage = () => {
       state.message += '!'
@@ -18,13 +18,10 @@ export default {
 </script>
 
 <template>
-  <div class="container" style="text-align: center">
+  <div v-bind:id="state.id" class="container" style="text-align: center">
     <h2>{{ state.message }}</h2>
-    <img
-      width="150px"
-      alt="Vue.js Logo"
-      src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Vue.js_Logo_2.svg/1200px-Vue.js_Logo_2.svg.png"
-    />
+    <img width="150px" alt="Vue.js Logo"
+      src="https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/Vue.js_Logo_2.svg/1200px-Vue.js_Logo_2.svg.png" />
     <p><b>chibivue</b> is the minimal Vue.js</p>
 
     <button @click="changeMessage">click me!</button>

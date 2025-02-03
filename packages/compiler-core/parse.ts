@@ -1,8 +1,10 @@
 import {
+  createRoot,
   NodeTypes,
   type AttributeNode,
   type DirectiveNode,
   type ElementNode,
+  type ExpressionNode,
   type InterpolationNode,
   type Position,
   type SourceLocation,
@@ -32,10 +34,10 @@ function createParserContext(content: string): ParserContext {
   }
 }
 
-export const baseParse = (content: string): { children: TemplateChildNode[] } => {
+export const baseParse = (content: string) => {
   const context = createParserContext(content)
   const children = parseChildren(context, [])
-  return { children }
+  return createRoot(children)
 }
 
 function parseChildren(context: ParserContext, ancestors: ElementNode[]): TemplateChildNode[] {
@@ -168,7 +170,12 @@ function parseInterpolation(context: ParserContext): InterpolationNode | undefin
 
   return {
     type: NodeTypes.INTERPOLATION,
-    content,
+    content: {
+      type: NodeTypes.SIMPLE_EXPRESSION,
+      isStatic: false,
+      content,
+      loc: getSelection(context, innerStart, innerEnd)
+    },
     loc: getSelection(context, start),
   }
 }
@@ -202,6 +209,7 @@ function parseTag(context: ParserContext, type: TagType): ElementNode {
     props,
     children: [],
     isSelfClosing,
+    codegenNode: undefined, // to be created during transform phase
     loc: getSelection(context, start),
   }
 }
@@ -262,20 +270,53 @@ function parseAttribute(
     value = parseAttributeValue(context)
   }
 
+  // directive
   const loc = getSelection(context, start)
-  if (/^(v-[A-Za-z0-9-]|@)/.test(name)) {
+  if (/^(v-[A-Za-z0-9-]|:|\.|@|#)/.test(name)) {
     const match = /(?:^v-([a-z0-9-]+))?(?:(?::|^\.|^@|^#)(\[[^\]]+\]|[^\.]+))?(.+)?$/i.exec(name)!
 
-    let dirName = match[1] || (startsWith(name, '@') ? 'on' : '')
+    let dirName = match[1] || (startsWith(name, ':') ? 'bind' : startsWith(name, '@') ? 'on' : '')
 
-    let arg = ''
+    let arg: ExpressionNode | undefined
 
-    if (match[2]) arg = match[2]
+    if (match[2]) {
+      const startOffset = name.lastIndexOf(match[2])
+      const loc = getSelection(
+        context,
+        getNewPosition(context, start, startOffset),
+        getNewPosition(context, start, startOffset + match[2].length),
+      )
+
+      let content = match[2]
+      let isStatic = true
+
+      if (content.startsWith('[')) {
+        isStatic = false
+        if (!content.endsWith(']')) {
+          console.error(`Invalid dynamic argument expression: ${content}`)
+          content = content.slice(1)
+        } else {
+          content = content.slice(1, content.length - 1)
+        }
+      }
+
+      arg = {
+        type: NodeTypes.SIMPLE_EXPRESSION,
+        content,
+        isStatic,
+        loc,
+      }
+    }
 
     return {
       type: NodeTypes.DIRECTIVE,
       name: dirName,
-      exp: value?.content ?? '',
+      exp: value && {
+        type: NodeTypes.SIMPLE_EXPRESSION,
+        content: value.content,
+        isStatic: false,
+        loc: value.loc,
+      },
       loc,
       arg,
     }
@@ -397,4 +438,24 @@ function getSelection(context: ParserContext, start: Position, end?: Position): 
     end,
     source: context.originalSource.slice(start.offset, end.offset),
   }
+}
+
+export function advancePositionWithClone(
+  pos: Position,
+  source: string,
+  numberOfCharacters: number = source.length,
+): Position {
+  return advancePositionWithMutation({ ...pos }, source, numberOfCharacters)
+}
+
+function getNewPosition(
+  context: ParserContext,
+  start: Position,
+  numberOfCharacters: number,
+): Position {
+  return advancePositionWithClone(
+    start,
+    context.originalSource.slice(start.offset, numberOfCharacters),
+    numberOfCharacters,
+  )
 }

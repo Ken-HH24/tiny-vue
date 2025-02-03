@@ -10,3 +10,10 @@ export const camelize = (str: string): string => {
 export const capitalize = (str: string) => str.charAt(0).toUpperCase() + str.slice(1)
 
 export const toHandlerKey = (str: string) => (str ? `on${capitalize(str)}` : ``)
+
+export const isString = (val: unknown): val is string => typeof val === 'string'
+
+export const isObject = (val: unknown): val is Record<any, any> =>
+  val !== null && typeof val === 'object'
+
+export const isArray = Array.isArray

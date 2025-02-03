@@ -42,6 +42,7 @@ export function createRenderer(options: RendererOptions) {
     createText: hostCreateText,
     insert: hostInsert,
     setText: hostSetText,
+    setElementText: hostSetElementText,
     parentNode: hostParentNode,
   } = options
 
@@ -125,7 +126,7 @@ export function createRenderer(options: RendererOptions) {
   }
 
   const mountChildren = (children: VNode[], container: RendererElement) => {
-    for (let i = 0; i < children.length; i++) {
+    for (let i = 0; i < children?.length; i++) {
       const child = (children[i] = normalizeVNode(children[i]))
       patch(null, child, container)
     }
@@ -136,7 +137,11 @@ export function createRenderer(options: RendererOptions) {
     const { type, props } = vnode
     el = vnode.el = hostCreateElement(type as string)
 
-    mountChildren(vnode.children as VNode[], el)
+    if (typeof vnode.children === 'string') {
+      hostSetElementText(vnode.el, vnode.children as string)
+    } else {
+      mountChildren(vnode.children as VNode[], el)
+    }
 
     if (props) {
       for (const key in props) {

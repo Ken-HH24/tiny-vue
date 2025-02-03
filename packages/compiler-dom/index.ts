@@ -2,7 +2,7 @@ import { baseCompile, baseParse } from '../compiler-core'
 import type { CompilerOptions } from '../compiler-core/options'
 
 export function compile(template: string, options?: CompilerOptions) {
-  const defaultOptions: CompilerOptions = {
+  const defaultOptions: Required<CompilerOptions> = {
     isBrowser: true,
   }
 

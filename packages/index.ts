@@ -5,6 +5,7 @@ import * as runtimeDom from './runtime-dom'
 export { createApp } from './runtime-dom'
 export { reactive } from './reactivity'
 export { h } from './runtime-core'
+export { normalizeClass, normalizeProps, normalizeStyle } from './shared'
 
 function compileToFunction(template: string) {
   const code = compile(template)
