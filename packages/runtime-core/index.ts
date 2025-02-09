@@ -7,3 +7,5 @@ export type { CreateAppFunction } from './api-create-app'
 export { registerRuntimeCompiler } from './component'
 
 export { h } from './h'
+
+export { createVNode } from './vnode'

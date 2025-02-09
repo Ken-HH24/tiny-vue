@@ -9,11 +9,14 @@ import {
   type TemplateChildNode,
 } from './ast'
 import type { TransformOptions } from './options'
+import { helperNameMap } from './runtime-helpers'
 
 export interface TransformContext extends Required<TransformOptions> {
   currentNode: RootNode | TemplateChildNode | null
   parent: ParentNode | null
   childIndex: number
+  helpers: Map<symbol, number>
+  helper<T extends symbol>(name: T): T
 }
 
 export type NodeTransform = (
@@ -35,12 +38,29 @@ export interface TransformContext extends Required<TransformOptions> {
   currentNode: RootNode | TemplateChildNode | null
   parent: ParentNode | null
   childIndex: number
+  identifiers: { [name: string]: number | undefined }
+  helper<T extends symbol>(name: T): T
+  helperString(name: symbol): string
+  addIdentifiers(exp: string): void
+  removeIdentifiers(exp: string): void
 }
 
 function createTransformContext(
   root: RootNode,
   transformOptions: TransformOptions,
 ): TransformContext {
+  function addId(id: string) {
+    const { identifiers } = context
+    if (identifiers[id] === undefined) {
+      identifiers[id] = 0
+    }
+    identifiers[id]!++
+  }
+
+  function removeId(id: string) {
+    context.identifiers[id]!--
+  }
+
   const { nodeTransforms = [], directiveTransforms = {}, isBrowser = true } = transformOptions
   const context: TransformContext = {
     isBrowser,
@@ -49,6 +69,26 @@ function createTransformContext(
     currentNode: root,
     parent: null,
     childIndex: 0,
+    identifiers: {},
+    helpers: new Map(),
+    helper: (name) => {
+      const count = context.helpers.get(name) || 0
+      context.helpers.set(name, count + 1)
+      return name
+    },
+    helperString(name) {
+      return `_${helperNameMap[context.helper(name)]}`
+    },
+    addIdentifiers(exp) {
+      if (!isBrowser) {
+        addId(exp)
+      }
+    },
+    removeIdentifiers(exp) {
+      if (!isBrowser) {
+        removeId(exp)
+      }
+    },
   }
 
   return context
@@ -57,6 +97,7 @@ function createTransformContext(
 export function transform(root: RootNode, options: TransformOptions) {
   const context = createTransformContext(root, options)
   traverseNode(root, context)
+  root.helpers = new Set([...context.helpers.keys()])
 }
 
 const traverseNode = (node: RootNode | TemplateChildNode, context: TransformContext) => {

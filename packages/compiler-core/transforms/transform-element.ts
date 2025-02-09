@@ -15,6 +15,7 @@ import {
   type TemplateTextChildNode,
   type VNodeCall,
 } from '../ast'
+import { MERGE_PROPS, NORMALIZE_CLASS, NORMALIZE_PROPS, NORMALIZE_STYLE, TO_HANDLERS } from '../runtime-helpers'
 import type { TransformContext } from '../transform'
 import { isStaticExp } from '../utils'
 
@@ -54,7 +55,7 @@ export const transformElement = (node: TemplateChildNode | RootNode, context: Tr
       }
     }
 
-    node.codegenNode = createVNodeCall(vnodeTag, vnodeProps, vnodeChildren)
+    node.codegenNode = createVNodeCall(context, vnodeTag, vnodeProps, vnodeChildren)
   }
 }
 
@@ -89,15 +90,23 @@ export function buildProps(node: ElementNode, context: TransformContext) {
       )
     } else {
       // directive
-      const { name, arg, exp } = prop
+      const { name, arg, exp, loc } = prop
       const isVBind = name === 'bind'
-      if (!arg && isVBind) {
+      const isVOn = name === 'on'
+
+      if (!arg && (isVBind || isVOn)) {
         if (exp) {
           if (isVBind) {
             pushMergeArg()
             mergeArgs.push(exp)
           } else {
-            // v-on
+            // v-on="obj" -> toHandlers(obj)
+            pushMergeArg({
+              type: NodeTypes.JS_CALL_EXPRESSION,
+              callee: context.helper(TO_HANDLERS),
+              loc,
+              arguments: [exp]
+            })
           }
         }
         continue
@@ -107,7 +116,11 @@ export function buildProps(node: ElementNode, context: TransformContext) {
       if (directiveTransform) {
         const { props } = directiveTransform(prop, node, context)
 
-        properties.push(...props)
+        if (isVOn && arg && !isStaticExp(arg)) {
+          pushMergeArg(createObjectExpression(props, elementLoc))
+        } else {
+          properties.push(...props)
+        }
       } else {
         // custom directive.
       }
@@ -118,7 +131,7 @@ export function buildProps(node: ElementNode, context: TransformContext) {
   if (mergeArgs.length) {
     pushMergeArg()
     if (mergeArgs.length > 1) {
-      propsExpression = createCallExpression('mergeProps', mergeArgs, elementLoc)
+      propsExpression = createCallExpression(context.helper(MERGE_PROPS), mergeArgs, elementLoc)
     } else {
       propsExpression = mergeArgs[0]
     }
@@ -147,7 +160,7 @@ export function buildProps(node: ElementNode, context: TransformContext) {
         const styleProp = propsExpression.properties[styleKeyIndex]
 
         if (classProp && !isStaticExp(classProp.value)) {
-          classProp.value = createCallExpression('normalizeClass', [classProp.value])
+          classProp.value = createCallExpression(context.helper(NORMALIZE_CLASS), [classProp.value])
         }
 
         if (
@@ -156,10 +169,10 @@ export function buildProps(node: ElementNode, context: TransformContext) {
             styleProp.value.content.trim()[0] === `[`) ||
             styleProp.value.type === NodeTypes.JS_ARRAY_EXPRESSION)
         ) {
-          styleProp.value = createCallExpression('normalizeStyle', [styleProp.value])
+          styleProp.value = createCallExpression(context.helper(NORMALIZE_STYLE), [styleProp.value])
         } else {
           // dynamic key binding, wrap with `normalizeProps`
-          propsExpression = createCallExpression('normalizeProps', [propsExpression])
+          propsExpression = createCallExpression(context.helper(NORMALIZE_PROPS), [propsExpression])
         }
         break
 
@@ -169,7 +182,7 @@ export function buildProps(node: ElementNode, context: TransformContext) {
 
       default:
         // single v-bind
-        propsExpression = createCallExpression('normalizeProps', [propsExpression])
+        propsExpression = createCallExpression(context.helper(NORMALIZE_PROPS), [propsExpression])
         break
     }
   }

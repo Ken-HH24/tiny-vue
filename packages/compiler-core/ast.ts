@@ -3,6 +3,8 @@
 // So, not only Element and Text, but also Attribute are treated as one Node.
 
 import { isString } from '../shared'
+import { CREATE_VNODE } from './runtime-helpers'
+import type { TransformContext } from './transform'
 
 // This is in line with the design of Vue.js and will be useful when implementing directives in the future.
 export const enum NodeTypes {
@@ -108,7 +110,7 @@ export type JSChildNode =
 
 export interface CallExpression extends Node {
   type: NodeTypes.JS_CALL_EXPRESSION
-  callee: string
+  callee: string | symbol
   arguments: (string | JSChildNode | TemplateChildNode | TemplateChildNode[])[]
 }
 
@@ -133,6 +135,7 @@ export interface RootNode extends Node {
   type: NodeTypes.ROOT
   children: TemplateChildNode[]
   codegenNode: (TemplateChildNode | VNodeCall)[] | undefined
+  helpers: Set<symbol>
 }
 
 export interface DirectiveNode extends Node {
@@ -172,15 +175,21 @@ export function createRoot(children: TemplateChildNode[], loc: SourceLocation = 
     children,
     codegenNode: undefined,
     loc,
+    helpers: new Set()
   }
 }
 
 export function createVNodeCall(
+  context: TransformContext,
   tag: VNodeCall['tag'],
   props?: VNodeCall['props'],
   children?: VNodeCall['children'],
   loc: SourceLocation = locStub,
 ): VNodeCall {
+  if (context) {
+    context.helper(CREATE_VNODE)
+  }
+
   return {
     type: NodeTypes.VNODE_CALL,
     tag,
@@ -251,10 +260,13 @@ export function createCallExpression<T extends CallExpression['callee']>(
   }
 }
 
-export const createCompoundExpression = (children: CompoundExpressionNode['children'], loc: SourceLocation = locStub): CompoundExpressionNode => {
+export const createCompoundExpression = (
+  children: CompoundExpressionNode['children'],
+  loc: SourceLocation = locStub,
+): CompoundExpressionNode => {
   return {
     type: NodeTypes.COMPOUND_EXPRESSION,
     children,
-    loc
+    loc,
   }
 }

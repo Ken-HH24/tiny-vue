@@ -95,13 +95,24 @@ export function createRenderer(options: RendererOptions) {
     update()
   }
 
+  // !important: this patch is incorrect
   const patchChildren = (n1: VNode, n2: VNode, container: RendererElement) => {
-    const c1 = n1.children as VNode[]
-    const c2 = n2.children as VNode[]
+    const c1 = n1.children
+    const c2 = n2.children
 
-    for (let i = 0; i < c2.length; i++) {
-      const child = (c2[i] = normalizeVNode(c2[i]))
-      patch(c1[i], child, container)
+    if (typeof c2 === 'string') {
+      if (c1 !== c2) {
+        hostSetElementText(container, c2)
+      }
+    } else {
+      if (typeof c1 === 'string') {
+        mountChildren(c2 as VNode[], container)
+      } else {
+        for (let i = 0; i < c2.length; i++) {
+          const child = (c2[i] = normalizeVNode(c2[i]))
+          patch((c1 as VNode[])[i], child, container)
+        }
+      }
     }
   }
 

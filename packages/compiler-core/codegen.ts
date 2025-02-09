@@ -15,6 +15,7 @@ import {
   type VNodeCall,
 } from './ast'
 import type { CompilerOptions } from './options'
+import { CREATE_VNODE, helperNameMap } from './runtime-helpers'
 
 const CONSTANT = {
   vNodeFuncName: 'h',
@@ -24,6 +25,8 @@ const CONSTANT = {
   normalizeProps: 'normalizeProps',
   ctxIdent: '_ctx',
 }
+
+const aliasHelper = (s: symbol) => `${helperNameMap[s]}: _${helperNameMap[s]}`
 
 type CodegenNode = TemplateChildNode | JSChildNode
 
@@ -35,6 +38,7 @@ export interface CodegenContext {
   column: 1
   offset: 0
   runtimeGlobalName: string
+  helper(key: symbol): string
   push(code: string, node?: CodegenNode): void
   indent(): void
   deindent(withoutNewLine?: boolean): void
@@ -50,6 +54,9 @@ function createCodegenContext(root: RootNode): CodegenContext {
     offset: 0,
     runtimeGlobalName: 'vue',
     indentLevel: 0,
+    helper(key) {
+      return `_${helperNameMap[key]}`
+    },
     push(code) {
       context.code += code
     },
@@ -121,16 +128,10 @@ export const generate = (ast: RootNode, options: Required<CompilerOptions>): str
   // }`
 }
 
-function genFunctionPreamble(_ast: RootNode, context: CodegenContext) {
+function genFunctionPreamble(ast: RootNode, context: CodegenContext) {
   const { push, newline, runtimeGlobalName } = context
-  const helpers = [
-    CONSTANT.vNodeFuncName,
-    CONSTANT.mergeProps,
-    CONSTANT.normalizeProps,
-    CONSTANT.normalizeClass,
-    CONSTANT.normalizeStyle,
-  ].join(', ')
-  push(`const { ${helpers} } = ${runtimeGlobalName}\n`)
+  const helpers = Array.from(ast.helpers)
+  push(`const { ${helpers.map(aliasHelper).join(', ')} } = ${runtimeGlobalName}\n`)
   newline()
 }
 
@@ -226,10 +227,10 @@ const genVNodeCall = (
   context: CodegenContext,
   option: Required<CompilerOptions>,
 ) => {
-  const { push } = context
+  const { push, helper } = context
   const { tag, props, children } = node
 
-  push(CONSTANT.vNodeFuncName + '(', node)
+  push(helper(CREATE_VNODE) + '(', node)
   genNodeList(genNullableArgs([tag, props, children]), context, option)
   push(')', node)
 }
@@ -351,9 +352,10 @@ const genCallExpression = (
   context: CodegenContext,
   option: Required<CompilerOptions>,
 ) => {
-  const { push } = context
-  const { callee, arguments: args } = node
+  const { push, helper } = context
+  const { arguments: args } = node
 
+  const callee = isString(node.callee) ? `${node.callee}` : helper(node.callee)
   push(`${callee}(`, node)
   genNodeList(args, context, option)
   push(')')

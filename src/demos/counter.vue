@@ -15,8 +15,8 @@ export default {
 
 <template>
   <div v-bind:id="state.id" class="container" style="text-align: center">
-    <div @click="increase">counter: {{ state.count }}</div>
-    <button>click me</button>
+    <div>counter: {{ state.count }}</div>
+    <button v-on:click="increase">click me</button>
   </div>
 </template>
 

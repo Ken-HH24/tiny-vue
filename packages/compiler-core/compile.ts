@@ -5,11 +5,12 @@ import { transform, type DirectiveTransform, type NodeTransform } from './transf
 import { transformElement } from './transforms/transform-element'
 import { transformExpression } from './transforms/transform-expression'
 import { vBindTransform } from './transforms/v-bind'
+import { vOnTransform } from './transforms/v-on'
 
 export type TransformPreset = [NodeTransform[], Record<string, DirectiveTransform>]
 
 export function getBaseTransformPreset(): TransformPreset {
-  return [[transformElement, transformExpression], { bind: vBindTransform }]
+  return [[transformElement, transformExpression], { bind: vBindTransform, on: vOnTransform }]
 }
 
 export function baseCompile(template: string, options: Required<CompilerOptions>) {

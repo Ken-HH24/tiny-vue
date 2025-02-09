@@ -25,7 +25,7 @@ export const transformExpression: NodeTransform = (node, ctx) => {
       if (dir.type === NodeTypes.DIRECTIVE) {
         const exp = dir.exp
         const arg = dir.arg
-        if (exp && exp.type === NodeTypes.SIMPLE_EXPRESSION) {
+        if (exp && exp.type === NodeTypes.SIMPLE_EXPRESSION && !(dir.name === 'on' && arg)) {
           dir.exp = processExpression(exp, ctx)
         }
         if (arg && arg.type === NodeTypes.SIMPLE_EXPRESSION && !arg.isStatic) {
@@ -41,7 +41,10 @@ interface PrefixMeta {
   end: number
 }
 
-const processExpression = (node: SimpleExpressionNode, ctx: TransformContext): ExpressionNode => {
+export const processExpression = (
+  node: SimpleExpressionNode,
+  ctx: TransformContext,
+): ExpressionNode => {
   if (ctx.isBrowser) {
     return node
   }
@@ -64,12 +67,16 @@ const processExpression = (node: SimpleExpressionNode, ctx: TransformContext): E
   const ast = parse(`(${rawExp})`).program
   type QualifiedId = Identifier & PrefixMeta
   const ids: QualifiedId[] = []
+  const knownIds = Object.create(ctx.identifiers)
 
-  walkIdentifiers(ast as any, (node) => {
-    console.log("#### ast walk", `(${rawExp})`, node, ast, )
-    node.name = rewriteIdentifier(node.name)
-    ids.push(node as QualifiedId)
-  })
+  walkIdentifiers(
+    ast as any,
+    (node) => {
+      node.name = rewriteIdentifier(node.name)
+      ids.push(node as QualifiedId)
+    },
+    knownIds,
+  )
 
   const children: CompoundExpressionNode['children'] = []
   ids.sort((a, b) => a.start - b.start)
